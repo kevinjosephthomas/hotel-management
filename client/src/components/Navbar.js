@@ -58,7 +58,7 @@ function Navbar() {
     <div>
       <nav className="navbar navbar-expand-lg">
         <a className="navbar-brand" href="/home">
-          MERN HOTEL BOOKING
+          HOTEL BOOKING
         </a>
         <button
           className="navbar-toggler"

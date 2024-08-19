@@ -1,7 +1,6 @@
 const express = require("express");
 const moment = require("moment");
-const stripe = require("stripe")("YOUR PRIVATE STRIP API KEY"); //
-const { v4: uuidv4 } = require("uuid"); //https://www.npmjs.com/package/uuid
+const { v4: uuidv4 } = require("uuid");
 
 const router = express.Router();
 
@@ -52,63 +51,33 @@ router.post("/getbookingbyuserid", async (req, res) => {
 
 router.post("/bookroom", async (req, res) => {
   try {
-    const { room, userid, fromdate, todate, totalAmount, totaldays, token } =
-      req.body;
+    const { room, userid, fromdate, todate, totalAmount, totaldays } = req.body;
 
-    try {
-      //create customer
-      const customer = await stripe.customers.create({
-        email: token.email,
-        source: token.id,
-      });
+    // Directly create a booking without payment processing
+    const newBooking = new Booking({
+      room: room.name,
+      roomid: room._id,
+      userid,
+      fromdate: moment(fromdate).format("DD-MM-YYYY"),
+      todate: moment(todate).format("DD-MM-YYYY"),
+      totalamount: totalAmount,
+      totaldays,
+      transactionid: uuidv4(),
+    });
 
-      //charge payment
-      const payment = await stripe.charges.create(
-        {
-          amount: totalAmount * 100,
-          customer: customer.id,
-          currency: "USD",
-          receipt_email: token.email,
-        },
-        {
-          idempotencyKey: uuidv4(),
-        }
-      );
+    const booking = await newBooking.save();
 
-      //Payment Success
-      if (payment) {
-        try {
-          const newBooking = new Booking({
-            room: room.name,
-            roomid: room._id,
-            userid,
-            fromdate: moment(fromdate).format("DD-MM-YYYY"),
-            todate: moment(todate).format("DD-MM-YYYY"),
-            totalamount: totalAmount,
-            totaldays,
-            transactionid: uuidv4(),
-          });
+    const roomTmp = await Room.findOne({ _id: room._id });
+    roomTmp.currentbookings.push({
+      bookingid: booking._id,
+      fromdate: moment(fromdate).format("DD-MM-YYYY"),
+      todate: moment(todate).format("DD-MM-YYYY"),
+      userid: userid,
+      status: booking.status,
+    });
 
-          const booking = await newBooking.save();
-
-          const roomTmp = await Room.findOne({ _id: room._id });
-          roomTmp.currentbookings.push({
-            bookingid: booking._id,
-            fromdate: moment(fromdate).format("DD-MM-YYYY"),
-            todate: moment(todate).format("DD-MM-YYYY"),
-            userid: userid,
-            status: booking.status,
-          });
-
-          await roomTmp.save();
-          res.send("Payment Successful, Your Room is booked");
-        } catch (error) {
-          return res.status(400).json({ message: error });
-        }
-      }
-    } catch (error) {
-      return res.status(400).json({ message: error });
-    }
+    await roomTmp.save();
+    res.send("Your Room is booked successfully");
   } catch (error) {
     return res.status(400).json({ message: error });
   }
